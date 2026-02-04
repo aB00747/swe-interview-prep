@@ -541,3 +541,66 @@ def nums_of_substring_three_char(s):
     return count
 
 print("nums_of_substring_three_char", nums_of_substring_three_char(s))
+
+
+# ***LC:30. (HARD) Substring with Concatenation of All Words
+"""
+You are given a string s and an array of strings words. All the strings of words are of the same length.
+
+A concatenated string is a string that exactly contains all the strings of any permutation of words concatenated.
+
+For example, if words = ["ab","cd","ef"], then "abcdef", "abefcd", "cdabef", "cdefab", "efabcd", and "efcdab" are all concatenated strings. "acdbef" is not a concatenated string because it is not the concatenation of any permutation of words.
+Return an array of the starting indices of all the concatenated substrings in s. You can return the answer in any order.
+
+Example 1:
+
+Input: s = "barfoothefoobarman", words = ["foo","bar"]
+
+Output: [0,9]
+
+Explanation:
+
+The substring starting at 0 is "barfoo". It is the concatenation of ["bar","foo"] which is a permutation of words.
+The substring starting at 9 is "foobar". It is the concatenation of ["foo","bar"] which is a permutation of words.
+"""
+from collections import Counter
+
+def findSubstring(s, words):
+    res = []
+    wordSize = len(words[0])
+    n = len(words)
+    need = Counter(words)
+
+    for start in range(wordSize):
+        left = start
+        seen = Counter()
+        count = 0
+
+        for right in range(start, len(s) - wordSize + 1, wordSize):
+            word = s[right : right + wordSize]
+
+            if  word not in need:
+                seen.clear()
+                count = 0
+                left = right + wordSize
+                continue
+
+            seen[word] += 1
+            count += 1
+
+            while seen[word] > need[word]:
+                left_word = s[left : left + wordSize]
+                seen[left_word] -= 1
+                count -= 1
+                left += wordSize
+
+            if count == n:
+                res.append(left)
+
+    return res
+
+s = "barfoothefoobarman"
+words = ["foo","bar"]
+print("findSubstring", findSubstring(s, words))
+
+
