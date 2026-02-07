@@ -27,3 +27,48 @@ def findTwoElement(arr):
 
 arr = [2, 2]
 print("findTwoElement", findTwoElement(arr))
+
+
+
+"""
+>>> Boyer-Moore Voting Algorithm
+LC: 169. Majority Element
+Given an array nums of size n, return the majority element.
+
+The majority element is the element that appears more than ⌊n / 2⌋ times. You may assume that the majority element always exists in the array.  
+Example 1:
+
+Input: nums = [3,2,3]
+Output: 3
+Example 2:
+
+Input: nums = [2,2,1,1,1,2,2]
+Output: 2
+"""
+def majorityElement(nums):
+    cand = 0
+    count = 0
+    n = len(nums)
+
+    for i in range(n):
+        if count == 0:
+            count = 1
+            cand = nums[i]
+        else:
+            if cand == nums[i]:
+                count += 1
+            else:
+                count -= 1
+
+    count2 = 0
+    for i in range(n):
+        if nums[i] == cand:
+            count2 += 1
+
+    if count2 > (n // 2):
+        return cand
+    else:
+        return None
+
+nums = [2,2,1,1,1,2,2] # o/p: 2
+print("majorityElement", majorityElement(nums))

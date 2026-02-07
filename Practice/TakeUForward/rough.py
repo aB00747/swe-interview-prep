@@ -119,3 +119,123 @@ def max_conse_ones(arr, k):
     return max_len
 
 print("max_conse_ones", max_conse_ones([1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0], 2))
+
+
+# constant window
+# array size is 6 -> n - 1
+# [1, 2, 3 , 4, 5, 6]
+# find the max sum with window size 3
+def constWindow(arr, k):
+    l = 0
+    n = len(arr)
+    r = k - 1
+    max_sum = 0
+    curr_sum = 0
+
+    # for i in range(k):
+    #     curr_sum += arr[i]
+    curr_sum = sum(arr[:k])
+    max_sum = curr_sum
+
+    while(r < n):
+        curr_sum += arr[r]
+        r += 1
+
+        curr_sum -= arr[l]
+        l += 1
+
+        max_sum = max(max_sum, curr_sum)
+
+    return max_sum
+
+
+arr = [1, 2, 3 , 4, 5, 6]
+print("constWindow", constWindow(arr, 3))
+
+"""
+2. First Negative Number in Every Window of Size K
+➤ For each window, find the first negative number (or 0 if none).
+"""
+#   0   1   2   3   4   5   6   7
+# [12, -1, -7, 8, -15, 30, 16, 28]
+# o/p: [-1, -1, -7, -15, -15, 0]
+#   ^       ^
+# r++, l++
+# r will scan and try to find -ve value
+# l will check if it remove or not the  only it allow to add new -ve value
+# one variable to store the tmp -ve value
+
+
+def firstNegative(arr, k):
+    l = r = 0
+    n = len(arr)
+    tmp = 0
+    res = []
+
+    while l <= r and r < n:
+        if r - l + 1 == k:
+            found = 0
+            for i in range(l, r):
+                if (arr[i] < 0):
+                    found = arr[i]
+                    break
+            res.append(found)
+            l += 1
+        r += 1
+    return res
+
+arr2 = [12, -1, -7, 8, -15, 30, 16, 28]
+
+print("firstNegative", firstNegative(arr2, 3))
+
+"""
+Count Occurrences of Anagrams
+➤ Count how many substrings of length len(p) in string s are anagrams of p.
+s = "forxxorfxdofr"
+     ^ ^
+p = "for"
+> 3
+
+"for" → f:1, o:1, r:1
+"orf" → f:1, o:1, r:1  ✅ same
+
+"""
+
+# save store in hash p with value:freq
+# length of p will be the window
+# if char curr_freq > expect_freq will move pointer (decrease order) until match the expect_freq
+
+def countOccuur(str, exp_str):
+    n = len(str) 
+    # window size
+    k = len(exp_str)
+    result = {}
+    hash = {}
+    l = r = 0
+    count = 0
+
+
+    for i in range(k):
+        result[exp_str[i]] = result.get(exp_str[i], 0) + 1
+    
+    while r < n:
+        hash[str[r]] = hash.get(str[r], 0) + 1
+
+        # shrink and del if zero freq char
+        while r - l + 1 > k:
+            hash[str[l]] -= 1
+            if (hash[str[l]]) == 0:
+                del hash[str[l]]
+            l += 1
+        
+        if r - l + 1 == k and  hash == result:
+            count += 1
+
+        r += 1
+
+    return count
+
+# s = "forxxorfxdofr"
+s = "xyzajjasjjdajsdak"
+p = "for"
+print(countOccuur(s, p))
