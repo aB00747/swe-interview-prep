@@ -239,3 +239,37 @@ def countOccuur(str, exp_str):
 s = "xyzajjasjjdajsdak"
 p = "for"
 print(countOccuur(s, p))
+
+# print(chr(97)) convert ASCII to character
+# print(ord('a')) char to ASCII
+
+# selection sort
+def selSort(arr):
+    n = len(arr)
+
+    for i in range(n):
+        min_index = i
+        for j in range(i, n):
+            # find minimal
+            if arr[j] < arr[min_index]:
+                min_index = j
+        # swap
+        arr[min_index], arr[i] = arr[i], arr[min_index]
+
+    return arr
+
+arr4 = [13, 46, 52, 20 , 9]
+# print(selSort(arr4))
+
+# Bubble sort
+def bubbleSort(arr):
+    n = len(arr)
+
+    for i in range(n - 1, -1):
+        for j in range(n):
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+
+    return arr
+
+print(bubbleSort(arr4))
