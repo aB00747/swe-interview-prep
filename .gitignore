@@ -1,0 +1,23 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Compiled files
+*.exe
+*.o
+*.out
+__pycache__/
+*.pyc
+
+# IDE configs
+.vscode/
+.idea/
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
