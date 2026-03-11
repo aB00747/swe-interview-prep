@@ -57,11 +57,62 @@ def sumo_num(n: int) -> int:
 print("sumo_num", sumo_num(6))
 
 # Power of 2
-# 2^5 = 2 x 2 x 2 x 2 x 2
-def power_of_two(n: int) -> int:
+# 2^5 = 2 x 2 x 2 x 2 x 2 = 32
+def power_of_two(num: int, n: int) -> int:
     if n == 1:
-        return 2
-    
-    return 2 * power_of_two(n - 1)
+        return num
 
-print(power_of_two(5))
+    return 2 * power_of_two(num, n - 1)
+
+print("power_of_two of: ", power_of_two(2, 5))
+
+"""
+Sum square of N Number
+n = 4
+1^2 + 2^2 + 3^2 + 4^2 = 30
+TC - O(n), 
+SC - O(n) - becuase of stack
+
+| sum_sqr_num(4) |
+| sum_sqr_num(3) |
+| sum_sqr_num(2) |
+| sum_sqr_num(1) |
+|________________|  S T A C K (FILO)
+"""
+def sum_sqr_num(n: int) -> int:
+    if n <= 1:
+        return n
+
+    return n * n + sum_sqr_num(n - 1)
+
+print("sum square of: ", sum_sqr_num(4))
+
+"""
+fibonacci series
+0 1 1 2 3 5 8 13 21 34 55
+TC - O(2^n)
+SC - O(n) - recursion stack
+"""
+def fibo(n: int) -> int:
+    if n <= 1:
+        return n
+
+    return fibo(n - 1) + fibo(n - 2)
+
+print("fibo: ", fibo(10))
+
+"""
+This Time Complexity become O(n) because of memo (memorization)
+TC - O(n), SC - O(n)
+"""
+def fibo2(n: int, memo = {}) -> int:
+    if n in memo:
+        return memo[n]
+
+    if n <= 1:
+        return n
+
+    memo[n] = fibo2(n - 1) + fibo2(n - 2)
+    return memo[n]
+
+print("SC fibo2 ", fibo2(10))

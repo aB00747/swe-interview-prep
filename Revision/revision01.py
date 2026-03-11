@@ -59,7 +59,7 @@ def palNum(num: int) -> bool:
 print("palNum", palNum(121))
 
 # Amstrong Numbers
-def armstrongNum(num: int) -> int:
+def armstrong_num(num: int) -> int:
     """
     Check if a number is an Armstrong number (Narcissistic number).
     An Armstrong number is a number that is equal to the sum of its own digits
@@ -85,13 +85,13 @@ def armstrongNum(num: int) -> int:
     original = num
 
     while num > 0:
-        lastDigit = num % 10
-        result += pow(lastDigit, 3)
+        last_digit = num % 10
+        result += pow(last_digit, 3)
         num = num // 10
 
     return result == original
 
-print(armstrongNum(153))
+print(armstrong_num(153))
 
 # Eculirean Algorithm
 def gcd(n1: int, n2: int) -> int:
@@ -144,7 +144,7 @@ def revStr(str: str) -> str:
         rev += str[i]
 
     return rev
-print("simple rev string", revStr("XYZS"))
+print("simple rev string", revStr("XYZS"))  
 
 def revStr2(str: str) -> str:
     return str[::-1]
