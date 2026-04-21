@@ -1,3 +1,5 @@
+# https://pythontutor.com/visualize.html#mode=display
+
 def printStr(n: int):
     if n == 0:
         print("Final Call")
@@ -253,3 +255,134 @@ def check_palindrone(s: str, start: int, end: int) -> bool:
 
 s = "naman"
 print("check_palindrone", check_palindrone(s, 0, len(s) - 1))
+
+def count_vowel(s: str, index: int, vowels: list) -> int:
+    # Count Vowels
+    """
+    aeiou
+    amanos - a a o => 3
+    """
+    if index == -1:
+        return 0
+    
+    if s[index] in vowels:
+        return 1 + count_vowel(s, index -1, vowels)
+    else:
+        return count_vowel(s, index - 1, vowels)
+
+strings = "amanos"
+vowels = ["a", "e", "i", "o", "u"]
+print(count_vowel(strings, len(strings) - 1, vowels))
+
+def rev_str(s: list, start: int, end: int):
+    """
+    Reverse string: rohit -> tihor
+    """
+    if start >= end:
+        return
+
+    s[start], s[end] = s[end], s[start] 
+
+    return rev_str(s, start + 1, end - 1)
+
+s = list("rohit")
+rev_str(s, 0, len(s) - 1)
+print("".join(s))
+
+def lowercase_to_uppercase(s: list, index: int):
+    """
+    Convert LowerCase to UpperCase
+    rohit -> ROHIT 
+    Tip: A + r - a
+    """
+    if index == -1:
+        return
+    
+    s[index] = chr(ord("A") + ord(s[index]) - ord("a"))
+
+    return lowercase_to_uppercase(s, index - 1)
+
+lowerString = list("rohit")
+lowercase_to_uppercase(lowerString, len(lowerString) - 1)
+print("".join(lowerString))
+
+
+def find(arr, index, n, target):
+    if target == 0:
+        return True
+
+    if index == n or target < 0:
+        return False
+
+    # Option 1: Skip current element
+    # Option 2: Include current element
+    return find(arr, index + 1, n, target) or find(arr, index + 1, n, target - arr[index])
+
+arr3 = [3, 6, 4, 5]
+target = 12
+print(find(arr3, 0, len(arr3), target))
+
+def count_sum_pairs(arr, index, n, target):
+    if target == 0:
+        return 1
+
+    if index == n or target < 0:
+        return 0
+
+    return count_sum_pairs(arr, index + 1, n, target) + count_sum_pairs(arr, index + 1, n, target - arr[index])
+
+# arr3 = [3, 6, 4, 5]
+arr3 = [5, 2, 3, 6, 10, 8]
+target = 10 #12
+print("count_sum_pairs", count_sum_pairs(arr3, 0, len(arr3), target))
+
+
+
+# Permutation
+def permut(arr: list, ans: list, visited: list, temp: list):
+    """
+    the real logic is we use visit where we store bool of the index that does this taken or not, to pick only 0/False one 
+    rest is the same and in below where use in-place arr wihtout taking visited arr/list
+    """
+    if len(visited) == len(temp):
+        ans.append(temp.copy())
+        return
+    
+    for i in range(len(visited)):
+        if visited[i] == 0:
+            visited[i] = 1
+            temp.append(arr[i])
+            permut(arr, ans, visited, temp)
+            visited[i] = 0
+            temp.pop()
+
+permute_arr1 = [1, 2, 3]
+ans = []
+visited = [0, 0, 0]
+permut(permute_arr1, ans, visited, [])
+print("permut", ans)
+
+
+def permut_optimise(arr: list, ans: list, index: int):
+    """
+                                  [1, 2, 3]
+          [1, 2, 3]               [2, 1, 3]               [3, 2, 1]
+    [1, 2, 3]   [1, 3, 2]   [2, 1, 3]   [2, 3 , 1]  [3, 2, 1]   [3, 1, 2]
+
+    above is the permutation of the 3 bollons has how much total possible combinations
+    TC - O(n x n!), SC - O(n x n!)
+    """
+    if index == len(arr) - 1:
+        ans.append(arr.copy()) # need copy otherwise all refernce to same list/array
+        return
+    
+    for i in range(index, len(arr)):
+        arr[i], arr[index] = arr[index], arr[i]
+        permut_optimise(arr, ans, index + 1)
+        arr[i], arr[index] = arr[index], arr[i]
+
+
+permute_arr = [1, 2, 3]
+ans = []
+permut_optimise(permute_arr, ans, 0)
+print("permut_optimise", ans)

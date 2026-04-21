@@ -51,9 +51,9 @@
 
 ### 🗓️ Day 15–18: Two Pointers
 
-* [ ] LC 167 – Two Sum II
-* [ ] LC 11 – Container With Most Water
-* [ ] LC 125 – Valid Palindrome
+* [x] LC 167 – Two Sum II
+* [x] LC 11 – Container With Most Water
+* [x] LC 125 – Valid Palindrome
 
 ### 🗓️ Day 19–22: Sliding Window (Fixed + Variable)
 
