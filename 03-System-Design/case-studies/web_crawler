@@ -1,0 +1,505 @@
+# Web Crawler System Design
+
+## Table of Contents
+1. [What is a Web Crawler?](#what-is-a-web-crawler)
+2. [Common Use Cases](#common-use-cases)
+3. [Requirements](#requirements)
+4. [Capacity Estimation](#capacity-estimation)
+5. [Core Components](#core-components)
+6. [Architecture Overview](#architecture-overview)
+7. [Web Crawler Workflow (Step-by-Step)](#web-crawler-workflow)
+8. [Deep Dive: URL Frontier](#deep-dive-url-frontier)
+9. [Deep Dive: HTML Fetcher & Renderer](#deep-dive-html-fetcher--renderer)
+10. [Deep Dive: Duplicate Detection](#deep-dive-duplicate-detection)
+11. [Deep Dive: URL Seen Detector](#deep-dive-url-seen-detector)
+12. [Scalability & Fault Tolerance](#scalability--fault-tolerance)
+13. [Interview Tips & Summary](#interview-tips--summary)
+
+---
+
+## What is a Web Crawler?
+
+A **web crawler** (also called a Spider or Spiderbot) is an automated program that systematically browses the internet to discover and download web content.
+
+Think of it like a librarian walking through an infinite library:
+- They start from a known shelf (Seed URLs)
+- Read each book (web page)
+- Note every reference cited inside (links on the page)
+- Follow those references to find new books
+- Keep a log of what they've already read (URL Seen Detector)
+- Repeat indefinitely
+
+---
+
+## Common Use Cases
+
+### 1. Search Engine Indexing
+Companies like Google, Bing, and Yahoo use web crawlers to scan and index billions of web pages. Without crawlers, search engines would have no data to serve search results from.
+
+- **What it does:** Scans pages, extracts text/metadata, stores them in a search index
+- **Why it matters:** Users get relevant results only because crawlers have already visited those pages
+
+### 2. Data Mining & Market Research
+Businesses crawl competitor websites, e-commerce platforms, and news sites to gather:
+- Pricing data (competitor prices)
+- Product listings
+- Sentiment analysis (news headlines, reviews)
+- Academic research datasets
+
+### 3. Web Archiving
+Services like the **Wayback Machine** (archive.org) crawl and snapshot websites over time so you can go back and see what a website looked like in the past. This is valuable for journalism, legal discovery, and historical research.
+
+---
+
+## Requirements
+
+### Functional Requirements
+| Requirement | Why It Matters |
+|---|---|
+| Crawl and store web pages | Core purpose — must be able to fetch and persist content |
+| Extract links from pages | To discover new pages to crawl (web graph traversal) |
+| Avoid duplicate content | Wastes storage and compute if we store the same page twice |
+| Support HTML (extendable to other formats) | Start simple, but design for PDFs, images, etc. later |
+
+### Non-Functional Requirements
+| Requirement | Why It Matters |
+|---|---|
+| **Politeness** | Don't overwhelm a single server with too many requests. Respect `robots.txt`. Good crawlers space out requests per domain |
+| **Prioritisation** | Not all URLs are equally important. High-value pages (e.g. BBC homepage) should be crawled more often than obscure pages |
+| **Scalability** | Must handle billions of URLs per month across distributed machines |
+| **Fault Tolerance** | If one worker crashes, the system should recover and not lose progress |
+| **Extensibility** | Design so you can later add image downloading, PDF parsing, etc. |
+
+---
+
+## Capacity Estimation
+
+These calculations show how big the system needs to be.
+
+### Given Assumptions
+- Pages to crawl per month: **1 billion** (10⁹)
+- Average page size: **2.5 MB** (2.5 × 10⁶ bytes)
+
+### Monthly Storage
+```
+Storage/month = 10⁹ pages × 2.5 × 10⁶ bytes/page
+              = 2.5 × 10¹⁵ bytes
+              = 2.5 Petabytes/month
+```
+
+### Yearly Storage
+```
+Storage/year = 12 × 2.5 × 10¹⁵
+             = 3 × 10¹⁶ bytes
+             ≈ 30 Petabytes/year
+```
+
+### 5-Year Total Storage
+```
+Storage (5 yrs) = 5 × 3 × 10¹⁶
+               = 1.5 × 10¹⁷ bytes
+               ÷ (1024⁵ bytes/PB)
+               ≈ 133 Petabytes
+```
+
+### Crawl Rate (QPS)
+```
+1 billion pages/month
+= 10⁹ / (30 days × 24 hrs × 3600 sec)
+= 10⁹ / 2,592,000
+≈ 385 pages/second
+```
+
+> **Interview insight:** Always calculate both storage AND throughput. Storage tells you how much hardware you need; throughput tells you how much parallelism you need.
+
+---
+
+## Core Components
+
+### 1. Seed URLs
+**What:** The initial set of URLs where crawling begins.
+
+**Why:** A crawler can't start from nothing. You feed it a starting point.
+
+**How to choose seed URLs:**
+- For a general search engine → use high-level directories like Wikipedia, government sites, news aggregators
+- For a focused crawler (e.g., e-commerce) → start with top e-commerce domains
+- Use RSS/Atom feeds or sitemaps for structured starting points
+
+---
+
+### 2. URL Frontier
+**What:** A queue that manages which URLs to crawl next.
+
+**Why:** You need a smart queue — not just first-in-first-out. You want to:
+1. **Prioritise** important URLs (high PageRank, frequently updated)
+2. **Enforce politeness** — avoid sending too many requests to one server at once
+
+**How it works:**
+- Uses **BFS (Breadth-First Search)** as the base traversal strategy
+- Internally has two queues:
+  - **Priority Queue** — ranks URLs by importance score
+  - **Politeness Queue** — groups URLs by hostname, delays requests per host
+
+```
+Example:
+  BBC.com/news   → priority: high (major news site, updated frequently)
+  MyBlog.com/old → priority: low  (rarely updated, low traffic)
+```
+
+**Politeness rule:** Only send 1 request per domain every N seconds (typically 1–5 seconds). This prevents the crawler from being banned or causing a DDoS on small servers.
+
+---
+
+### 3. HTML Fetcher & Renderer Threads
+**What:** Worker threads that actually download web pages.
+
+**Why:** Fetching is I/O-bound (waiting on network), so you want many parallel threads.
+
+**How it works (3 sub-steps):**
+
+**3a. Fetch URL from Frontier**
+The thread picks the next URL from the URL Frontier to process.
+
+**3b. DNS Resolution**
+Converts the domain name (e.g., `bbc.com`) to an IP address.
+- Uses a local **DNS cache** to avoid repeated lookups (same domain = reuse cached IP)
+- Without caching, every request would hit the DNS server — very slow
+
+**3c. Fetch content from the internet**
+Opens a TCP connection to the IP address and downloads the HTML.
+- Also handles **JavaScript rendering** for single-page applications (SPAs)
+- Some crawlers use headless browsers (e.g., Puppeteer) to execute JS before extracting content
+
+---
+
+### 4. HTML Parser
+**What:** Parses the raw HTML into a structured, clean document.
+
+**Why:** Raw HTML is messy — broken tags, inconsistent formatting, inline scripts, ads. The parser:
+- Fixes malformed HTML
+- Extracts meaningful text content
+- Identifies links (`<a href="...">`) for further crawling
+- Strips irrelevant elements (ads, scripts, navigation boilerplate)
+
+**Output:** Clean content + list of discovered URLs
+
+---
+
+### 5. Duplicate Detection
+**What:** Checks if the content has already been seen before.
+
+**Why:** The same content may exist at multiple URLs (mirrors, pagination, print versions). Storing duplicates wastes storage and pollutes search indexes.
+
+**How it works:**
+- Compute a **hash (e.g., SHA-256 or SimHash)** of the page content
+- Check this hash against a hash store
+- If already seen → discard
+- If new → store and continue
+
+> **SimHash** is preferred for near-duplicate detection — it can detect pages that are 95% the same (e.g., the same article with a different ad banner).
+
+---
+
+### 6. Modular Services
+**What:** After parsing, content is passed to specialised downstream services.
+
+**Why:** Different use cases need different processing.
+
+Examples:
+- **Analytics Service** — tracks crawl statistics, error rates, page quality metrics
+- **Image Download Service** — separately queues and downloads images found on pages
+- **URL Extractor** — extracts all links from the parsed page to feed back into the URL Frontier
+
+**How (via Kafka):**
+Services communicate through **Apache Kafka** (a message queue). The URL Extractor publishes discovered URLs to Kafka; the URL Frontier consumes them. This decouples the systems — if the URL Extractor is slow, it doesn't block the Frontier.
+
+---
+
+### 7. URL Filter
+**What:** Filters out URLs that should not be crawled.
+
+**Why:** Not everything on the web should be crawled. The filter removes:
+- URLs matching patterns in `robots.txt` (the site owner asks crawlers not to visit)
+- Blacklisted domains (spam, malware, adult content)
+- Non-HTML content types (if you only want HTML)
+- Already-visited URLs (via the URL Seen Detector)
+- URLs with blocked file extensions (`.exe`, `.zip`)
+
+**How:**
+```
+URL → Filter Rules Check:
+  - Is domain blacklisted?     → discard
+  - Is it in robots.txt deny?  → discard
+  - Is file extension allowed? → keep or discard
+  - Passes all checks?         → forward to URL Seen Detector
+```
+
+---
+
+### 8. URL Seen Detector
+**What:** Tracks which URLs have already been crawled.
+
+**Why:** Without this, the crawler would revisit the same pages endlessly, wasting resources.
+
+**How it works:**
+- Maintains a **hash set** of all seen URLs (often using a **Bloom Filter** for memory efficiency)
+- If URL is new → add to the URL Frontier for crawling; store in URL Storage
+- If URL has been seen → discard
+
+**Bloom Filter advantage:**
+- A standard hash set for 1 billion URLs would need ~50 GB of RAM
+- A Bloom Filter stores the same data in ~1–2 GB (with a tiny false positive rate ~1%)
+- False positive = occasionally skip a URL that was actually new (acceptable trade-off)
+
+**URL Storage:**
+A persistent store (e.g., Cassandra or DynamoDB) that keeps the full list of seen URLs along with metadata: crawl timestamp, HTTP status code, next scheduled crawl time.
+
+---
+
+## Architecture Overview
+
+```
+Seed URLs
+    │
+    ▼
+URL Frontier ──────────────────► HTML Fetcher & Renderer Threads
+    ▲                                   │          │
+    │                                   │          ▼
+    │                              Internet    DNS Resolver
+    │                                   │
+    │                                   ▼
+    │                             HTML Parser
+    │                                   │
+    │                    ┌──────────────┤
+    │                    │              │
+    │                    ▼              ▼
+    │            Content Cache    Duplicate Detection
+    │                                   │
+    │                           ┌───────┴────────┐
+    │                           │                │
+    │                     Content Storage    Kafka (Message Queue)
+    │                                            │
+    │                              ┌─────────────┼──────────────┐
+    │                              │             │              │
+    │                    Analytics Service  Image Download  URL Extractor
+    │                                                           │
+    │                                                      URL Filter
+    │                                                           │
+    │                                                  URL Seen Detector ◄─► URL Storage
+    │                                                           │
+    └───────────────────────────────────────────────────────────┘
+                    (New, unseen URLs go back to frontier)
+```
+
+---
+
+## Web Crawler Workflow
+
+Here is the complete flow, step by step:
+
+| Step | Component | What Happens |
+|---|---|---|
+| **1** | Seed URLs → URL Frontier | Initial URLs are loaded into the frontier |
+| **2** | URL Frontier → HTML Fetcher | Frontier selects the next URL to crawl (based on priority + politeness) |
+| **3a** | HTML Fetcher | Fetches the URL from the frontier queue |
+| **3b** | DNS Resolver | Resolves domain to IP address |
+| **3c** | Internet | Downloads the page content |
+| **4** | HTML Parser | Parses raw HTML into clean, structured content |
+| **5** | Duplicate Detection | Hashes the content; checks if it's been seen before |
+| **6** | Modular Services (via Kafka) | Passes content to Analytics, Image Download, URL Extractor |
+| **7** | URL Filter | Filters out unwanted discovered URLs (robots.txt, blacklists, etc.) |
+| **8** | URL Seen Detector | Checks if filtered URLs have been crawled before; new ones go back to frontier |
+
+---
+
+## Deep Dive: URL Frontier
+
+The URL Frontier is the brain of the crawler — it decides what to crawl and when.
+
+### Two-Level Queue Architecture
+
+```
+Incoming URLs
+     │
+     ▼
+┌─────────────────────────────┐
+│       Priority Queues        │
+│  Q1 (high priority) ────►   │
+│  Q2 (medium priority) ──►   │  ← Prioritiser assigns scores
+│  Q3 (low priority) ─────►   │
+└─────────────┬───────────────┘
+              │
+              ▼
+┌─────────────────────────────┐
+│       Politeness Queues      │
+│  bbc.com queue     ────►    │
+│  cnn.com queue     ────►    │  ← One queue per domain
+│  reddit.com queue  ────►    │    with time delay enforced
+└─────────────┬───────────────┘
+              │
+              ▼
+         Worker Threads
+```
+
+**Priority scoring factors:**
+- PageRank (how many sites link to this page?)
+- Update frequency (how often does this page change?)
+- Domain authority (is this a trusted, authoritative site?)
+
+**Politeness enforcement:**
+- Each domain has a dedicated sub-queue
+- A router ensures workers only pull from a domain queue if the last request to that domain was more than N seconds ago
+- This respects `Crawl-delay` settings in `robots.txt`
+
+---
+
+## Deep Dive: HTML Fetcher & Renderer
+
+### DNS Caching Strategy
+
+Without DNS caching:
+```
+Request 1: bbc.com → DNS lookup → 151.101.0.81 (takes ~50ms)
+Request 2: bbc.com → DNS lookup → 151.101.0.81 (takes ~50ms again!)
+```
+
+With DNS caching:
+```
+Request 1: bbc.com → DNS lookup → cache bbc.com=151.101.0.81 (50ms)
+Request 2: bbc.com → cache hit → 151.101.0.81 (< 1ms)
+```
+
+The DNS cache is a simple key-value store (domain → IP) with a TTL (time-to-live). Typical TTL for crawlers: 10–30 minutes.
+
+### Handling JavaScript-Heavy Pages
+
+Modern web apps (React, Angular, Vue) render content dynamically with JavaScript. A plain HTTP request would return an empty shell.
+
+**Solution:** Headless browser rendering
+- Use tools like **Puppeteer** or **Playwright**
+- Load the page in a real (headless) browser, wait for JS to execute, then extract the rendered HTML
+- More expensive — reserve for pages known to be JS-heavy
+
+---
+
+## Deep Dive: Duplicate Detection
+
+### Content Hashing
+
+```
+Page A: "Today's weather in London is sunny" → SHA256 → a3f9...
+Page B: "Today's weather in London is sunny" → SHA256 → a3f9... (same hash → duplicate)
+Page C: "Tomorrow's weather in Paris is rainy" → SHA256 → b71c... (different → new content)
+```
+
+### Near-Duplicate Detection with SimHash
+
+SimHash is designed for pages that are almost identical but not exactly the same:
+
+```
+Page A: Full article + Ad Banner X
+Page B: Full article + Ad Banner Y
+
+Standard hash: completely different hashes (miss the duplication)
+SimHash: similarity score = 96% → flagged as near-duplicate
+```
+
+**How SimHash works:**
+1. Extract keywords from the document
+2. Create a weighted bit vector for each keyword based on its hash
+3. Sum the vectors; positive bits = 1, negative bits = 0
+4. The resulting fingerprint is the SimHash
+5. Two pages with SimHash Hamming distance ≤ 3 are considered near-duplicates
+
+---
+
+## Deep Dive: URL Seen Detector
+
+### Bloom Filter
+
+A **Bloom Filter** is a probabilistic data structure that answers: "Have I seen this URL before?"
+
+```
+Properties:
+  - Can say "definitely NOT seen" (no false negatives)
+  - Can say "probably seen" (small false positive rate ~1%)
+  - Uses 10-20x less memory than a hash set
+
+Example:
+  1 billion URLs × 50 bytes each = 50 GB (hash set)
+  vs.
+  1 billion URLs in Bloom Filter = ~1.2 GB (at 1% false positive rate)
+```
+
+**The trade-off:** Occasionally, a brand-new URL might be incorrectly flagged as "seen" and skipped. For a web crawler at scale, missing ~1% of URLs is an acceptable price for 40x memory savings.
+
+---
+
+## Scalability & Fault Tolerance
+
+### Horizontal Scaling
+
+Every component in this architecture is stateless or externally-stateful:
+- **HTML Fetcher threads** → add more workers as needed
+- **HTML Parser** → scale independently based on parsing backlog
+- **URL Frontier** → distributed priority queue (e.g., Redis sorted sets or Apache Kafka)
+
+### Fault Tolerance
+
+| Failure | Recovery Strategy |
+|---|---|
+| A fetcher worker crashes | The URL stays in the Frontier — another worker picks it up |
+| DNS cache goes down | Fall back to direct DNS lookups (slower but functional) |
+| Duplicate store goes down | Temporarily allow potential duplicates; reconcile later |
+| Kafka broker fails | Kafka replication ensures no message loss (replication factor ≥ 3) |
+| Storage is full | Alert + auto-scale storage (object stores like S3 scale infinitely) |
+
+### Checkpointing
+
+The URL Seen Detector + URL Storage act as the crawler's persistent memory. Even if the whole system restarts:
+1. Reload the URL Frontier from persisted pending URLs
+2. The Seen Detector still knows which URLs have been processed
+3. Crawling resumes from where it left off
+
+---
+
+## Interview Tips & Summary
+
+### Key Questions an Interviewer Might Ask
+
+**Q: How do you handle politeness?**
+> The URL Frontier has per-domain queues with configurable crawl delays. We respect `robots.txt` and enforce minimum intervals between requests to the same host.
+
+**Q: How do you detect duplicate content?**
+> We use SHA-256 hashing for exact duplicates and SimHash for near-duplicate detection. The hashes are stored in a fast key-value store like Redis.
+
+**Q: How do you scale to 1 billion pages/month?**
+> At ~385 pages/second, we need ~400+ parallel fetcher threads. The architecture is horizontally scalable — we add fetcher workers and parser workers independently. The URL Frontier is a distributed queue (Kafka/Redis), and storage is distributed (Cassandra for metadata, S3 for raw HTML).
+
+**Q: What is the URL Seen Detector?**
+> A Bloom Filter (in-memory) backed by persistent URL Storage. It tells us which URLs we've already crawled so we don't revisit them. Unseen URLs are added to the URL Frontier and stored persistently.
+
+**Q: Why Kafka?**
+> Kafka decouples the URL Extractor from the URL Frontier. If downstream services (analytics, image downloader) are slow, they don't block the main crawl pipeline. It also provides durability (messages are persisted) and allows replay if a service crashes.
+
+**Q: How do you handle JavaScript-rendered pages?**
+> For known JS-heavy domains, we use headless browsers (Puppeteer). For the majority of pages, a simple HTTP fetch is sufficient and much cheaper.
+
+### Quick Component Summary
+
+| Component | Role | Key Design Choice |
+|---|---|---|
+| Seed URLs | Starting points | Curated high-authority domains or feeds |
+| URL Frontier | Queue + scheduler | BFS + priority + politeness queues |
+| DNS Resolver | Domain → IP | Local DNS cache to reduce latency |
+| HTML Fetcher | Downloads pages | Thread pool, optional headless browser |
+| HTML Parser | Cleans + structures content | Extracts text + links |
+| Duplicate Detection | Avoids redundant storage | SimHash for near-duplicates |
+| Content Cache | Fast content lookup | Redis or Memcached |
+| Content Storage | Persistent page store | S3 + Cassandra metadata |
+| Kafka | Message bus | Decouples modular services |
+| URL Extractor | Finds new links | Modular service consuming Kafka |
+| URL Filter | Removes bad URLs | robots.txt, blacklists, extensions |
+| URL Seen Detector | Tracks visited URLs | Bloom Filter + persistent store |
+| URL Storage | Persists crawl history | Cassandra/DynamoDB |
